@@ -1,4 +1,5 @@
 import axios from "axios";
+import { $ } from 'select-dom';
 
 export async function getBase64FromUrl(url) {
   const data = await fetch(url);
@@ -28,13 +29,35 @@ export async function getBase64FromIMG(url) {
     };
   });
 }
+//function for convert signature png base64 url to jpeg base64
+export const convertPNGtoJPEG = (base64Data) => {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement("canvas");
+    const img = new Image();
+    img.src = base64Data;
+
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff"; // white color
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      // Convert to JPEG by using the canvas.toDataURL() method
+      const jpegBase64Data = canvas.toDataURL("image/jpeg");
+
+      resolve(jpegBase64Data);
+    };
+
+    img.onerror = (error) => {
+      reject(error);
+    };
+  });
+};
 
 export function getHostUrl() {
   const hostUrl = window.location.href;
-  /// const hostUrl = "https://contracts-defaultssty.qik.ai/#/mf/remoteUrl=aHR0cHM6Ly9xaWstYWktb3JnLmdpdGh1Yi5pby9TaWduLU1pY3JvYXBwVjIvcmVtb3RlRW50cnkuanM=&moduleToLoad=AppRoutes&remoteName=signmicroapp/legadrive";
-  // const hostUrl = "https://contracts-defaultssty.qik.ai/#/"
-  // const hostUrl = "https://lionfish-app-75ly7.ondigitalocean.app/mf/remoteUrl=aHR0cHM6Ly9xaWstYWktb3JnLmdpdGh1Yi5pby9TaWduLU1pY3JvYXBwVjIvcmVtb3RlRW50cnkuanM=&moduleToLoad=AppRoutes&remoteName=signmicroapp/legadrive"
-  //const hostUrl = "https://app.opensignlabs.com/rpmf/remoteUrl=aHR0cHM6Ly9xaWstYWktb3JnLmdpdGh1Yi5pby9TaWduLU1pY3JvYXBwVjIvcmVtb3RlRW50cnkuanM=&moduleToLoad=AppRoutes&remoteName=signmicroapp/draftDocument";
 
   if (hostUrl) {
     const urlSplit = hostUrl.split("/");
@@ -59,32 +82,38 @@ export function onSaveImage(xyPostion, index, signKey, imgWH, image) {
   );
 
   if (updateFilter.length > 0) {
-    let newWidth, nweHeight;
+    let newWidth, newHeight;
     const aspectRatio = imgWH.width / imgWH.height;
+
     const getXYdata = xyPostion[index].pos;
+
     if (aspectRatio === 1) {
       newWidth = aspectRatio * 100;
-      nweHeight = aspectRatio * 100;
+      newHeight = aspectRatio * 100;
     } else if (aspectRatio < 2) {
       newWidth = aspectRatio * 100;
-      nweHeight = 100;
+      newHeight = 100;
     } else if (aspectRatio > 2 && aspectRatio < 4) {
       newWidth = aspectRatio * 70;
-      nweHeight = 70;
+      newHeight = 70;
     } else if (aspectRatio > 4) {
       newWidth = aspectRatio * 40;
-      nweHeight = 40;
+      newHeight = 40;
     } else if (aspectRatio > 5) {
       newWidth = aspectRatio * 10;
-      nweHeight = 10;
+      newHeight = 10;
     }
-    const getPosData = getXYdata;
-    const addSign = getPosData.map((url, ind) => {
+
+    let getPosData = xyPostion[index].pos.filter(
+      (data) => data.key === signKey
+    );
+
+    const addSign = getXYdata.map((url, ind) => {
       if (url.key === signKey) {
         return {
           ...url,
-          Width: newWidth,
-          Height: nweHeight,
+          Width: getPosData[0].Width ? getPosData[0].Width : newWidth,
+          Height: getPosData[0].Height ? getPosData[0].Height : newHeight,
           SignUrl: image.src,
           ImageType: image.imgType
         };
@@ -103,8 +132,9 @@ export function onSaveImage(xyPostion, index, signKey, imgWH, image) {
   } else {
     const getXYdata = xyPostion[index].pos;
 
-    const getPosData = getXYdata;
-
+    let getPosData = xyPostion[index].pos.filter(
+      (data) => data.key === signKey
+    );
     const aspectRatio = imgWH.width / imgWH.height;
 
     let newWidth, newHeight;
@@ -125,12 +155,12 @@ export function onSaveImage(xyPostion, index, signKey, imgWH, image) {
       newHeight = 10;
     }
 
-    const addSign = getPosData.map((url, ind) => {
+    const addSign = getXYdata.map((url, ind) => {
       if (url.key === signKey) {
         return {
           ...url,
-          Width: newWidth,
-          Height: newHeight,
+          Width: getPosData[0].Width ? getPosData[0].Width : newWidth,
+          Height: getPosData[0].Height ? getPosData[0].Height : newHeight,
           SignUrl: image.src,
           ImageType: image.imgType
         };
@@ -145,21 +175,15 @@ export function onSaveImage(xyPostion, index, signKey, imgWH, image) {
       return obj;
     });
     return newUpdateUrl;
-    // setXyPostion(newUpdateUrl);
   }
 }
 
 //function for save button to save signature or image url
 export function onSaveSign(xyPostion, index, signKey, signatureImg) {
-  // const updateFilter = xyPostion[index].pos.filter(
-  //   (data) => data.key === signKey && data.SignUrl
-  // );
-
   let getXYdata = xyPostion[index].pos;
-  let getPosData = getXYdata;
-  // if (updateFilter.length > 0) {
-  // updateFilter[0].SignUrl = signatureImg;
-  const addSign = getPosData.map((url, ind) => {
+  let getPosData = xyPostion[index].pos.filter((data) => data.key === signKey);
+
+  const addSign = getXYdata.map((url, ind) => {
     if (url.key === signKey) {
       return {
         ...url,
@@ -178,63 +202,107 @@ export function onSaveSign(xyPostion, index, signKey, signatureImg) {
     return obj;
   });
   return newUpdateUrl;
-  // } else {
-  //   const addSign = getPosData.map((url, ind) => {
-  //     if (url.key === signKey) {
-  //       return {
-  //         ...url,
-  //         SignUrl: signatureImg,
-  //         Width: getPosData[0].Width ? getPosData[0].Width : 150,
-  //         Height: getPosData[0].Height ? getPosData[0].Height : 60
-  //       };
-  //     }
-  //     return url;
-  //   });
-
-  //   const newUpdateUrl = xyPostion.map((obj, ind) => {
-  //     if (ind === index) {
-  //       return { ...obj, pos: addSign };
-  //     }
-  //     return obj;
-  //   });
-  //   return newUpdateUrl;
-  // }
 }
 
-//function for getting contract_User details
-export const contractUsers = async (objectId) => {
-  const result = await axios
-    .get(
-      `${localStorage.getItem("baseUrl")}classes/${localStorage.getItem(
-        "_appName"
-      )}_Users?where={"UserId": {"__type": "Pointer","className": "_User", "objectId":"${objectId}"}}`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Parse-Application-Id": localStorage.getItem("parseAppId"),
-          "X-Parse-Session-Token": localStorage.getItem("accesstoken")
-        }
+//function for getting document details from contract_Documents class
+export const contractDocument = async (documentId) => {
+  const data = {
+    docId: documentId
+  };
+  const documentDeatils = await axios
+    .post(`${localStorage.getItem("baseUrl")}functions/getDocument`, data, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Parse-Application-Id": localStorage.getItem("parseAppId"),
+        sessionToken: localStorage.getItem("accesstoken")
       }
-    )
+    })
     .then((Listdata) => {
       const json = Listdata.data;
-      const res = json.results;
-      return res;
+      let data = [];
+      if (json && json.result.error) {
+        return json;
+      } else if (json && json.result) {
+        data.push(json.result);
+        return data;
+      } else {
+        return [];
+      }
     })
     .catch((err) => {
       return "Error: Something went wrong!";
     });
 
-  return result;
+  return documentDeatils;
 };
 
-//function for getting contrscts_contactbook details
+//function for getting document details for getDrive
+export const getDrive = async (documentId) => {
+  const data = {
+    docId: documentId && documentId
+  };
+  const driveDeatils = await axios
+    .post(`${localStorage.getItem("baseUrl")}functions/getDrive`, data, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Parse-Application-Id": localStorage.getItem("parseAppId"),
+        sessiontoken: localStorage.getItem("accesstoken")
+      }
+    })
+    .then((Listdata) => {
+      const json = Listdata.data;
+
+      if (json && json.result.error) {
+        return json;
+      } else if (json && json.result) {
+        const data = json.result;
+        return data;
+      } else {
+        return [];
+      }
+    })
+    .catch((err) => {
+      return "Error: Something went wrong!";
+    });
+
+  return driveDeatils;
+};
+//function for getting contract_User details
+export const contractUsers = async (email) => {
+  const data = {
+    email: email
+  };
+  const userDetails = await axios
+    .post(`${localStorage.getItem("baseUrl")}functions/getUserDetails`, data, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Parse-Application-Id": localStorage.getItem("parseAppId"),
+        sessionToken: localStorage.getItem("accesstoken")
+      }
+    })
+    .then((Listdata) => {
+      const json = Listdata.data;
+      let data = [];
+
+      if (json && json.result) {
+        data.push(json.result);
+        return data;
+      }
+    })
+    .catch((err) => {
+      return "Error: Something went wrong!";
+    });
+
+  return userDetails;
+};
+
+//function for getting contracts_contactbook details
 export const contactBook = async (objectId) => {
   const result = await axios
     .get(
       `${localStorage.getItem("baseUrl")}classes/${localStorage.getItem(
         "_appName"
-      )}_Contactbook?where={"UserId": {"__type": "Pointer","className": "_User", "objectId":"${objectId}"}}`,
+      )}_Contactbook?where={"objectId":"${objectId}"}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -255,28 +323,22 @@ export const contactBook = async (objectId) => {
   return result;
 };
 
-export const contactBookName = async (objectId, className) => {
-  const result = await axios
-    .get(
-      `${localStorage.getItem("baseUrl")}classes/${localStorage.getItem(
-        "_appName"
-      )}${className}?where={"objectId":"${objectId}"}`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Parse-Application-Id": localStorage.getItem("parseAppId"),
-          "X-Parse-Session-Token": localStorage.getItem("accesstoken")
-        }
-      }
-    )
-    .then((Listdata) => {
-      const json = Listdata.data;
-      return json;
-    })
-    .catch((err) => {
-      return "Error: Something went wrong!";
-    });
-  return result;
+// function for validating URLs
+export function urlValidator(url) {
+  try {
+    const newUrl = new URL(url);
+    return newUrl.protocol === 'http:' || newUrl.protocol === 'https:';
+  } catch (err) {
+    return false;
+  }
+}
+export function modalAlign() {
+  let modalDialog = $('.modal-dialog').getBoundingClientRect();
+  let mobileHead = $('.mobileHead').getBoundingClientRect()
+  let modal = $('.modal-dialog');
+  if (modalDialog.left < mobileHead.left) {
+    let leftOffset = mobileHead.left - modalDialog.left;
+    modal.style.left = leftOffset + 'px';
+    modal.style.top = (window.innerHeight/3) + 'px';
+  }
 };
-
- 

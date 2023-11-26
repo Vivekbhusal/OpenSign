@@ -12,40 +12,109 @@ const Report = () => {
   const [isLoader, setIsLoader] = useState(true);
   const [reportName, setReportName] = useState("");
   const [actions, setActions] = useState([]);
+  const [isNextRecord, setIsNextRecord] = useState(false);
+  const [isMoreDocs, setIsMoreDocs] = useState(true);
+  const abortController = new AbortController();
+  const docPerPage = 10;
+
+  // below useEffect is call when id param change
   useEffect(() => {
     setReportName("");
+    setList([]);
     getReportData();
+
+    // Function returned from useEffect is called on unmount
+    return () => {
+      setIsLoader(true);
+      setList([]);
+      setIsNextRecord(false);
+      // Here it'll abort the fetch
+      abortController.abort();
+    };
     // eslint-disable-next-line
   }, [id]);
 
-  const getReportData = async () => {
-    setIsLoader(true);
+  // below useEffect call when isNextRecord state is true and fetch next record
+  useEffect(() => {
+    if (isNextRecord) {
+      getReportData(List.length, 200);
+    }
+    // eslint-disable-next-line
+  }, [isNextRecord]);
+
+  const getReportData = async (skipUserRecord = 0, limit = 200) => {
+    // setIsLoader(true);
     const json = reportJson(id);
     if (json) {
       setActions(json.actions);
       setReportName(json.reportName);
-      const { className, params, keys, orderBy } = json;
       Parse.serverURL = localStorage.getItem("BaseUrl12");
       Parse.initialize(localStorage.getItem("AppID12"));
-      const serverURL =
-        localStorage.getItem("BaseUrl12") + "classes/" + className;
+      const currentUser = Parse.User.current().id;
 
-      const strParams = JSON.stringify(params);
-      const strKeys = keys.join();
       const headers = {
         "Content-Type": "application/json",
         "X-Parse-Application-Id": localStorage.getItem("AppID12"),
-        "X-Parse-Session-Token": localStorage.getItem("accesstoken")
+        sessiontoken: localStorage.getItem("accesstoken")
       };
       try {
-        const url = `${serverURL}?where=${strParams}&keys=${strKeys}&order=${orderBy}`;
-        const res = await axios.get(url, { headers: headers });
-        // console.log("res ", res.data?.results);
-        setList(res.data?.results);
+        const params = { reportId: id, skip: skipUserRecord, limit: limit };
+        const url = `${localStorage.getItem("BaseUrl12")}/functions/getReport`;
+        const res = await axios.post(url, params, {
+          headers: headers,
+          signal: abortController.signal // is used to cancel fetch query
+        });
+        if (id === "4Hhwbp482K") {
+          const listData = res.data?.result.filter((x) => x.Signers.length > 0);
+          let arr = [];
+          for (const obj of listData) {
+            const isSigner = obj.Signers.some(
+              (item) => item.UserId.objectId === currentUser
+            );
+            if (isSigner) {
+              let isRecord;
+              if (obj?.AuditTrail && obj?.AuditTrail.length > 0) {
+                isRecord = obj?.AuditTrail.some(
+                  (item) =>
+                    item?.UserPtr?.UserId?.objectId === currentUser &&
+                    item.Activity === "Signed"
+                );
+              } else {
+                isRecord = false;
+              }
+              if (isRecord === false) {
+                arr.push(obj);
+              }
+            }
+          }
+          if (arr.length === docPerPage) {
+            setIsMoreDocs(true);
+          } else {
+            setIsMoreDocs(false);
+          }
+          setList((prevRecord) =>
+            prevRecord.length > 0 ? [...prevRecord, ...arr] : arr
+          );
+        } else {
+          if (res.data.result.length === docPerPage) {
+            setIsMoreDocs(true);
+          } else {
+            setIsMoreDocs(false);
+          }
+          setIsNextRecord(false);
+          setList((prevRecord) =>
+            prevRecord.length > 0
+              ? [...prevRecord, ...res.data.result]
+              : res.data.result
+          );
+        }
         setIsLoader(false);
       } catch (err) {
-        console.log("err ", err);
-        setIsLoader(false);
+        const isCancel = axios.isCancel(err);
+        if (!isCancel) {
+          console.log("err ", err);
+          setIsLoader(false);
+        }
       }
     } else {
       setIsLoader(false);
@@ -78,6 +147,9 @@ const Report = () => {
               ReportName={reportName}
               List={List}
               actions={actions}
+              setIsNextRecord={setIsNextRecord}
+              isMoreDocs={isMoreDocs}
+              docPerPage={docPerPage}
             />
           ) : (
             <div className="flex items-center justify-center h-screen w-full bg-white rounded">

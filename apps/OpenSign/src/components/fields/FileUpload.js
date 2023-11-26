@@ -11,7 +11,7 @@ const FileUpload = (props) => {
 
   const [localValue, setLocalValue] = useState("");
   const [Message] = useState(false);
-  const [percentage] = useState(0);
+  const [percentage, setpercentage] = useState(0);
 
   const REQUIRED_FIELD_SYMBOL = "*";
 
@@ -70,15 +70,23 @@ const FileUpload = (props) => {
   const handleFileUpload = async (file) => {
     Parse.serverURL = parseBaseUrl;
     Parse.initialize(parseAppId);
+    setfileload(true);
     const size = file.size;
     const fileName = file.name;
     const name = sanitizeFileName(fileName);
-    setfileload(true);
     const pdfFile = file;
     const parseFile = new Parse.File(name, pdfFile);
 
     try {
-      const response = await parseFile.save();
+      const response = await parseFile.save({
+        progress: (progressValue, loaded, total, { type }) => {
+          if (type === "upload" && progressValue !== null) {
+            const percentCompleted = Math.round((loaded * 100) / total);
+            // console.log("percentCompleted ", percentCompleted);
+            setpercentage(percentCompleted);
+          }
+        }
+      });
 
       setFileUpload(response.url());
       props.onChange(response.url());
@@ -90,14 +98,14 @@ const FileUpload = (props) => {
       // console.log("File URL:", response.url());
       if (response.url()) {
         SaveFileSize(size, response.url());
-
         return response.url();
       }
     } catch (error) {
+      setfileload(false);
+      setpercentage(0);
       console.error("Error uploading file:", error);
     }
   };
-
   let fileView =
     props.formData &&
     props.schema.uploadtype === "s3viajw" ? null : props.formData &&
@@ -133,12 +141,14 @@ const FileUpload = (props) => {
             <span className="required">{REQUIRED_FIELD_SYMBOL}</span>
           )}
           {fileload ? (
-            <div className="progress pull-right">
-              <div
-                className="progress__bar"
-                style={{ width: `${percentage}%` }}
-              ></div>
-              <span className="progress__value">{percentage}%</span>
+            <div className="flex items-center gap-x-2">
+              <div className="h-2 rounded-full w-[200px] md:w-[400px] bg-gray-200">
+                <div
+                  className="h-2 rounded-full bg-blue-500"
+                  style={{ width: `${percentage}%` }}
+                ></div>
+              </div>
+              <span className="text-black text-sm">{percentage}%</span>
             </div>
           ) : (
             Message && (

@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from "react";
 import "./certificate.css";
+import opensignLogo from "../../assests/open-sign-logo.png";
 
-import { Page, Text, View, Document, StyleSheet } from "@react-pdf/renderer";
+import {
+  Page,
+  Text,
+  View,
+  Document,
+  StyleSheet,
+  Image
+} from "@react-pdf/renderer";
 
 function Certificate({ pdfData }) {
   const [isMultiSigners, setIsMultiSigners] = useState();
@@ -33,86 +41,50 @@ function Certificate({ pdfData }) {
     page: {
       borderRadius: "5px",
       padding: "10px",
-      backgroundColor: "white",
+      backgroundColor: "white"
     },
     section1: {
       border: "1px solid rgb(177, 174, 174)",
-      padding: "20px",
+      padding: "20px"
     },
     textStyle: {
       fontWeight: "bold",
       fontSize: "11px",
-      marginBottom: "10px",
+      marginBottom: "10px"
     },
     textStyle2: {
       fontWeight: "600",
       fontSize: "11px",
       marginBottom: "10px",
-      color: "gray",
+      color: "gray"
     },
+    image: {
+      width: "71px",
+      height: "17px"
+    }
   });
 
   const generatedDate = () => {
     const newDate = new Date();
-    const localExpireDate = newDate.toLocaleDateString("en-US", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-
-    var currentOffset = newDate.getTimezoneOffset();
-
-    var ISTOffset = 330; // IST offset UTC +5:30
-
-    var ISTTime = new Date(
-      newDate.getTime() + (ISTOffset + currentOffset) * 60000
-    );
-
-    // ISTTime now represents the time in IST coordinates
-
-    var hoursIST = ISTTime.getHours();
-    var minutesIST = ISTTime.getMinutes();
+    const utcTime = newDate.toUTCString();
 
     return (
       <Text
         style={{
-          textAlign: "right",
           color: "gray",
-          fontSize: "10px",
-          marginBottom: "30px",
+          fontSize: "10px"
         }}
       >
-        Generated On {localExpireDate} {hoursIST}:{minutesIST} IST
+        Generated On {utcTime}
       </Text>
     );
   };
   const changeCompletedDate = () => {
     const completedOn = pdfData[0].updatedAt;
     const newDate = new Date(completedOn);
-    const localExpireDate = newDate.toLocaleDateString("en-US", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+    const utcTime = newDate.toUTCString();
 
-    var currentOffset = newDate.getTimezoneOffset();
-
-    var ISTOffset = 330; // IST offset UTC +5:30
-
-    var ISTTime = new Date(
-      newDate.getTime() + (ISTOffset + currentOffset) * 60000
-    );
-
-    // ISTTime now represents the time in IST coordinates
-
-    var hoursIST = ISTTime.getHours();
-    var minutesIST = ISTTime.getMinutes();
-
-    return (
-      <Text style={styles.textStyle2}>
-        {localExpireDate} {hoursIST}:{minutesIST} IST
-      </Text>
-    );
+    return <Text style={styles.textStyle2}>{utcTime}</Text>;
   };
 
   const signerName = (data) => {
@@ -136,14 +108,26 @@ function Certificate({ pdfData }) {
       )
     );
   };
- 
+
   return (
     isLoad && (
       <Document>
         {/** Page defines a single page of content. */}
         <Page size="A4" style={styles.page}>
           <View style={styles.section1}>
-            {generatedDate()}
+            <View
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "30px"
+              }}
+            >
+              <Image src={opensignLogo} style={styles.image} />
+              {generatedDate()}
+            </View>
+
             <View style={{ justifyContent: "center" }}>
               <Text
                 style={{
@@ -151,7 +135,7 @@ function Certificate({ pdfData }) {
                   fontSize: "20px",
                   fontWeight: "bold",
                   color: "#31bceb",
-                  marginBottom: "10px",
+                  marginBottom: "10px"
                 }}
               >
                 {" "}
@@ -165,7 +149,7 @@ function Certificate({ pdfData }) {
                       fontSize: "16px",
                       fontWeight: "bold",
                       color: "#31bceb",
-                      margin: "10px 0px 10px 0px",
+                      margin: "10px 0px 10px 0px"
                     }}
                   >
                     Summary
@@ -182,7 +166,9 @@ function Certificate({ pdfData }) {
                   </Text>
                   <Text style={styles.textStyle}>
                     Organization : &nbsp;
-                    <Text style={styles.textStyle2}>__</Text>
+                    <Text style={styles.textStyle2}>
+                      {pdfData[0].ExtUserPtr.Company}
+                    </Text>
                   </Text>
                   <Text style={styles.textStyle}>
                     Completed on : &nbsp;{changeCompletedDate()}
@@ -203,36 +189,40 @@ function Certificate({ pdfData }) {
                         fontSize: "16px",
                         fontWeight: "bold",
                         color: "#31bceb",
-                        margin: "10px 0px 10px 0px",
+                        margin: "10px 0px 10px 0px"
                       }}
                     >
                       Recipients
                     </Text>
 
                     <View>
-                      {multiSigner && multiSigner.map((data, ind) => {
-                        return (
-                          <View
-                            key={ind}
-                            style={{ display: "flex", flexDirection: "column" }}
-                          >
+                      {multiSigner &&
+                        multiSigner.map((data, ind) => {
+                          return (
                             <View
+                              key={ind}
                               style={{
-                                border: "0.4px solid #bdbbbb",
-                                marginBottom: "10px",
+                                display: "flex",
+                                flexDirection: "column"
                               }}
-                            ></View>
-                            {signerName(data)}
+                            >
+                              <View
+                                style={{
+                                  border: "0.4px solid #bdbbbb",
+                                  marginBottom: "10px"
+                                }}
+                              ></View>
+                              {signerName(data)}
 
-                            <Text style={styles.textStyle}>
-                              Accessed from : &nbsp;
-                              <Text style={styles.textStyle2}>
-                                {data.ipAddress}
+                              <Text style={styles.textStyle}>
+                                Accessed from : &nbsp;
+                                <Text style={styles.textStyle2}>
+                                  {data.ipAddress}
+                                </Text>
                               </Text>
-                            </Text>
-                          </View>
-                        );
-                      })}
+                            </View>
+                          );
+                        })}
                     </View>
                   </View>
                 ) : (
@@ -242,7 +232,7 @@ function Certificate({ pdfData }) {
                         fontSize: "16px",
                         fontWeight: "bold",
                         color: "#31bceb",
-                        margin: "10px 0px 10px 0px",
+                        margin: "10px 0px 10px 0px"
                       }}
                     >
                       Recipients
@@ -257,9 +247,16 @@ function Certificate({ pdfData }) {
                       </Text>
                     </Text>
                     <Text style={styles.textStyle}>
+                      Email : &nbsp;
+                      <Text style={styles.textStyle2}>
+                        {pdfData[0].ExtUserPtr.Email}
+                      </Text>
+                    </Text>
+                    <Text style={styles.textStyle}>
                       Accessed from : &nbsp;
                       <Text style={styles.textStyle2}>
-                        {pdfData[0].AuditTrail && pdfData[0].AuditTrail[0].ipAddress}
+                        {pdfData[0].AuditTrail &&
+                          pdfData[0].AuditTrail[0].ipAddress}
                       </Text>
                     </Text>
 

@@ -5,8 +5,6 @@ import { Rnd } from "react-rnd";
 import { themeColor } from "../../utils/ThemeColor/backColor";
 import { Document, Page, pdfjs } from "react-pdf";
 
-// import Draggable from "react-draggable";
-
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
 
 function RenderPdf({
@@ -41,19 +39,98 @@ function RenderPdf({
   placeholder,
   pdfLoadFail
 }) {
-  const isMobile = window.innerWidth < 712;
+  const isMobile = window.innerWidth < 767;
+  const newWidth = window.innerWidth;
+  const scale = isMobile ? pdfOriginalWidth / newWidth : 1;
+ //check isGuestSigner is present in local if yes than handle login flow header in mobile view
+ const isGuestSigner = localStorage.getItem("isGuestSigner");
+  // handle signature block width and height according to screen
+  const posWidth = (pos) => {
+    let width;
+    if (isMobile) {
+      if (!pos.isMobile) {
+        width = pos.Width / scale ? pos.Width / scale : 150 / scale;
+        return width;
+      } else {
+        width = pos.Width ? pos.Width : 150;
+        return width;
+      }
+    } else {
+      width = pos.Width ? pos.Width : 150;
+      return width;
+    }
+  };
+  const posHeight = (pos) => {
+    let width;
+    if (isMobile) {
+      if (!pos.isMobile) {
+        width = pos.Height / scale ? pos.Height / scale : 60 / scale;
+        return width;
+      } else {
+        width = pos.Height ? pos.Height : 60;
+        return width;
+      }
+    } else {
+      width = pos.Height ? pos.Height : 60;
+      return width;
+    }
+  };
+   
 
   //function for render placeholder block over pdf document
-
   const checkSignedSignes = (data) => {
-    // console.log("data",data)
     const checkSign = signedSigners.filter(
       (sign) => sign.objectId === data.signerObjId
     );
     if (data.signerObjId === signerObjectId) {
       setCurrentSigner(true);
     }
+    const xPos = (pos) => {
+      //checking both condition mobile and desktop view
+      if (isMobile) {
+        //if pos.isMobile false -- placeholder saved from desktop view then handle position in mobile view divided by scale
+        if (!pos.isMobile) {
+          return pos.xPosition / scale - 20;
+        }
+        //pos.isMobile true -- placeholder save from mobile view(small device)  handle position in mobile view(small screen) view divided by scale
+        else {
+          return pos.xPosition * (pos.scale / scale);
+        }
+      } else {
+        //else if pos.isMobile true -- placeholder saved from mobile or tablet view then handle position in desktop view divide by scale
 
+        if (pos.isMobile) {
+          return pos.scale && pos.xPosition * pos.scale + 50;
+        }
+        //else placeholder save from desktop(bigscreen) and show in desktop(bigscreen)
+        else {
+          return pos.xPosition;
+        }
+      }
+    };
+    const yPos = (pos) => {
+      //checking both condition mobile and desktop view
+      if (isMobile) {
+        //if pos.isMobile false -- placeholder saved from desktop view then handle position in mobile view divided by scale
+        if (!pos.isMobile) {
+          return pos.yPosition / scale;
+        }
+        //pos.isMobile true -- placeholder save from mobile view(small device)  handle position in mobile view(small screen) view divided by scale
+        else {
+          return pos.yPosition * (pos.scale / scale);
+        }
+      } else {
+        //else if pos.isMobile true -- placeholder saved from mobile or tablet view then handle position in desktop view divide by scale
+
+        if (pos.isMobile) {
+          return pos.scale && pos.yPosition * pos.scale + 50;
+        }
+        //else placeholder save from desktop(bigscreen) and show in desktop(bigscreen)
+        else {
+          return pos.yPosition;
+        }
+      }
+    };
     return (
       checkSign.length === 0 &&
       data.placeHolder.map((placeData, key) => {
@@ -91,15 +168,13 @@ function RenderPdf({
                         borderWidth: "0.2px"
                       }}
                       size={{
-                        width: pos.Width ? pos.Width : 150,
-                        height: pos.Height ? pos.Height : 60
+                        width: posWidth(pos),
+                        height: posHeight(pos)
                       }}
                       lockAspectRatio={pos.Width && 2.5}
                       default={{
-                        x: pos.scale
-                          ? pos.xPosition * pos.scale
-                          : pos.xPosition,
-                        y: pos.scale ? pos.yPosition * pos.scale : pos.yPosition
+                        x: xPos(pos),
+                        y: yPos(pos)
                       }}
                       onClick={() => {
                         setIsSignPad(true);
@@ -160,12 +235,12 @@ function RenderPdf({
                       borderWidth: "0.2px"
                     }}
                     default={{
-                      x: pos.scale ? pos.xPosition * pos.scale : pos.xPosition,
-                      y: pos.scale ? pos.yPosition * pos.scale : pos.yPosition
+                      x: xPos(pos),
+                      y: yPos(pos)
                     }}
                     size={{
-                      width: pos.Width ? pos.Width : 150,
-                      height: pos.Height ? pos.Height : 60
+                      width: posWidth(pos),
+                      height: posHeight(pos)
                     }}
                     lockAspectRatio={pos.Width ? pos.Width / pos.Height : 2.5}
                   >
@@ -174,7 +249,7 @@ function RenderPdf({
                         fontSize: "12px",
                         color: "black",
                         fontWeight: "600",
-                        // justifyContent: "center",
+
                         marginTop: "0px"
                       }}
                     >
@@ -191,26 +266,11 @@ function RenderPdf({
 
   return (
     <>
-      {isMobile ? (
-        // <RSC
-        //   style={{
-        //     position: "relative",
-        //     boxShadow: "rgba(17, 12, 46, 0.15) 0px 48px 100px 0px",
-        //     width:
-        //       pdfOriginalWidth > pdfNewWidth ? pdfNewWidth : pdfOriginalWidth,
-        //     height: window.innerHeight - 110 + "px",
-        //     marginTop: "50px",
-        //   }}
-        //   noScrollY={false}
-        //   noScrollX={pdfNewWidth < pdfOriginalWidth ? false : true}
-        // >
+      {isMobile && scale ? (
         <div
           style={{
-            border: "0.1px solid #ebe8e8"
-            // marginTop: "50px",
-
-            //  height:window.innerHeight-100+'px',
-            // width:window.innerWidth
+            border: "0.1px solid #ebe8e8",
+            marginTop: isGuestSigner && "30px"
           }}
           ref={drop}
           id="container"
@@ -269,13 +329,20 @@ function RenderPdf({
                                 borderWidth: "0.2px"
                               }}
                               size={{
-                                width: pos.Width ? pos.Width : 150,
-                                height: pos.Height ? pos.Height : 60
+                                width: posWidth(pos),
+                                height: posHeight(pos)
                               }}
                               lockAspectRatio={pos.Width && 2.5}
+                              //if pos.isMobile false -- placeholder saved from desktop view then handle position in mobile view divide by scale
+                              //else if pos.isMobile true -- placeholder saved from mobile or tablet view then handle position in desktop view divide by scale
                               default={{
-                                x: pos.xPosition,
-                                y: pos.yPosition
+                                x: !pos.isMobile
+                                  ? pos.xPosition / scale
+                                  : pos.xPosition * (pos.scale / scale) - 50,
+
+                                y: !pos.isMobile
+                                  ? pos.yPosition / scale
+                                  : pos.yPosition * (pos.scale / scale)
                               }}
                               onClick={() => {
                                 setIsSignPad(true);
@@ -328,13 +395,20 @@ function RenderPdf({
                                 borderWidth: "0.2px"
                               }}
                               size={{
-                                width: pos.Width ? pos.Width : 150,
-                                height: pos.Height ? pos.Height : 60
+                                width: posWidth(pos),
+                                height: posHeight(pos)
                               }}
                               disableDragging={true}
                               default={{
-                                x: pos.xPosition,
-                                y: pos.yPosition
+                                //if pos.isMobile false -- placeholder saved from desktop view then handle position in mobile view divide by scale
+                                //else if pos.isMobile true -- placeholder saved from mobile or tablet view then handle position in desktop view divide by scale
+                                x: !pos.isMobile
+                                  ? pos.xPosition / scale
+                                  : pos.xPosition * (pos.scale / scale) - 50,
+
+                                y: !pos.isMobile
+                                  ? pos.yPosition / scale
+                                  : pos.yPosition * (pos.scale / scale)
                               }}
                               onClick={() => {
                                 setIsSignPad(true);
@@ -409,7 +483,14 @@ function RenderPdf({
                                       right: { display: "none" },
                                       bottomRight: { display: "block" }
                                     }}
-                                    onDragStop={handleStop}
+                                    onDragStop={(event, dragElement) =>
+                                      handleStop(
+                                        event,
+                                        dragElement,
+                                        data.signerObjId,
+                                        pos.key
+                                      )
+                                    }
                                     default={{
                                       x: pos.xPosition,
                                       y: pos.yPosition
@@ -437,13 +518,6 @@ function RenderPdf({
                                           data.signerObjId
                                         );
                                       }}
-                                      // onClick={(e) => {
-                                      //   e.stopPropagation();
-                                      //   handleDeleteSign(
-                                      //     pos.key,
-                                      //     data.signerObjId
-                                      //   );
-                                      // }}
                                       style={{
                                         position: "absolute",
                                         right: 0,
@@ -461,7 +535,7 @@ function RenderPdf({
                                         fontSize: "12px",
                                         color: "black",
                                         fontWeight: "600",
-                                        // justifyContent: "center",
+
                                         marginTop: "0px"
                                       }}
                                     >
@@ -532,8 +606,7 @@ function RenderPdf({
                             >
                               {" "}
                               <div
-                                // className="dragElm"
-                                onTouchStart={(e) => {
+                                onTouchEnd ={(e) => {
                                   if (!isDragging) {
                                     setTimeout(() => {
                                       e.stopPropagation();
@@ -545,18 +618,12 @@ function RenderPdf({
                                 }}
                               >
                                 <div
-                                  // className="dragElm"
                                   ref={nodeRef}
                                   onTouchStart={(e) => {
                                     e.stopPropagation();
                                     handleDeleteSign(pos.key);
                                     setIsStamp(false);
                                   }}
-                                  // onClick={(e) => {
-                                  //   e.stopPropagation();
-                                  //   handleDeleteSign(pos.key);
-                                  //   setIsStamp(false);
-                                  // }}
                                   style={{
                                     position: "absolute",
                                     right: 0,
@@ -573,6 +640,7 @@ function RenderPdf({
                                     alt="signimg"
                                     onClick={(e) => {
                                       setSignKey(pos.key);
+                                      console.log("Drag 2");
                                       setIsSignPad(true);
                                       setIsStamp(pos.isStamp);
                                     }}
@@ -590,10 +658,8 @@ function RenderPdf({
                             <>
                               <Rnd
                                 allowAnyClick
-                                // cancel=".dragElm"
                                 ref={nodeRef}
                                 key={pos.key}
-                                // lockAspectRatio={2.5}
                                 lockAspectRatio={
                                   pos.Width ? pos.Width / pos.Height : 2.5
                                 }
@@ -616,53 +682,21 @@ function RenderPdf({
                                 onDrag={(e) => {
                                   handleTabDrag(pos.key, e);
                                 }}
-                                // onMouseUp={(e) => handleTabDrag(pos.key, e)}
                                 onDragStop={handleStop}
                                 size={{
                                   width: pos.Width ? pos.Width : 150,
                                   height: pos.Height ? pos.Height : 60
                                 }}
-                                // onMouseDown={(e) => {
-
-                                //   if (!isDragging) {
-                                //     console.log("child m=event",isDragging);
-                                //     setTimeout(() => {
-                                //       if(isDeleted){
-                                //         setIsSignPad(true);
-                                //         // setIsSignPad(false)
-                                //         setSignKey(pos.key);
-                                //         setIsStamp(pos.isStamp);
-
-                                //       }else{
-                                //          setIsSignPad(true);
-                                //         // setIsSignPad(false)
-                                //         setSignKey(pos.key);
-                                //         setIsStamp(pos.isStamp);
-                                //       }
-
-                                //     }, 500);
-                                //   }
-                                // }}
                                 default={{
                                   x: pos.xPosition,
                                   y: pos.yPosition
                                 }}
-
-                                // onClick={(e) => {
-                                //   if (!isDragging) {
-                                //     e.stopPropagation();
-                                //     setIsSignPad(true);
-                                //     setSignKey(pos.key);
-                                //     setIsStamp(pos.isStamp);
-                                //   }
-                                // }}
                               >
                                 <div
-                                  onTouchStart={(e) => {
+                                  onTouchEnd ={(e) => {
                                     if (!isDragging) {
                                       setTimeout(() => {
                                         setIsSignPad(true);
-                                        //setIsSignPad(false)
                                         setSignKey(pos.key);
                                         setIsStamp(pos.isStamp);
                                       }, 500);
@@ -686,21 +720,9 @@ function RenderPdf({
                                   }}
                                 >
                                   <div
-                                    //  onMouseDown={(e) => {
-                                    //    console.log("child m=event")
-                                    //    e.preventDefault();
-                                    //    setIsDragging(true)
-
-                                    //    handleDeleteSign(pos.key);
-                                    //    setIsStamp(false);
-                                    //    setTimeout(()=>{
-                                    //      setIsDragging(false)
-                                    //    },2000)
-                                    //  }}
                                     onTouchStart={(e) => {
                                       e.stopPropagation();
                                       e.preventDefault();
-                                      // setIsDragging(true);
 
                                       handleDeleteSign(pos.key);
                                       setIsStamp(false);
@@ -755,8 +777,13 @@ function RenderPdf({
               }}
               onLoadSuccess={pageDetails}
               ref={pdfRef}
-              file={pdfUrl ? pdfUrl : pdfDetails[0] && pdfDetails[0].URL}
-              //   file="https://qikinnovation.ams3.digitaloceanspaces.com/exported_file_2068_2023-08-30T05%3A04%3A26.334Z.pdf" //  "https://api.printnode.com/static/test/pdf/multipage.pdf" //  {pdfUrl ? pdfUrl : signPdfUrl}
+              file={
+                pdfUrl
+                  ? pdfUrl
+                  : pdfDetails[0] && pdfDetails[0].SignedUrl
+                  ? pdfDetails[0].SignedUrl
+                  : pdfDetails[0].URL
+              }
             >
               {Array.from(new Array(numPages), (el, index) => (
                 <Page
@@ -764,7 +791,6 @@ function RenderPdf({
                   pageNumber={pageNumber}
                   width={window.innerWidth}
                   height={window.innerHeight}
-                  // scale={1}
                   renderAnnotationLayer={false}
                   renderTextLayer={false}
                   onGetAnnotationsError={(error) => {
@@ -776,7 +802,6 @@ function RenderPdf({
           </div>
         </div>
       ) : (
-        // </RSC>
         <RSC
           style={{
             position: "relative",
@@ -854,12 +879,15 @@ function RenderPdf({
                                   height: pos.Height ? pos.Height : 60
                                 }}
                                 lockAspectRatio={pos.Width && 2.5}
+                                //if pos.isMobile false -- placeholder saved from mobile view then handle position in desktop view to multiply by scale
+
                                 default={{
-                                  x: pos.scale
-                                    ? pos.xPosition * pos.scale
+                                  x: pos.isMobile
+                                    ? pos.scale &&
+                                      pos.xPosition * pos.scale + 20
                                     : pos.xPosition,
-                                  y: pos.scale
-                                    ? pos.yPosition * pos.scale
+                                  y: pos.isMobile
+                                    ? pos.scale && pos.yPosition * pos.scale
                                     : pos.yPosition
                                 }}
                                 onClick={() => {
@@ -917,12 +945,15 @@ function RenderPdf({
                                   height: pos.Height ? pos.Height : 60
                                 }}
                                 disableDragging={true}
+                                //if pos.isMobile false -- placeholder saved from mobile view then handle position in desktop view to multiply by scale
+
                                 default={{
-                                  x: pos.scale
-                                    ? pos.xPosition * pos.scale
+                                  x: pos.isMobile
+                                    ? pos.scale &&
+                                      pos.xPosition * pos.scale + 20
                                     : pos.xPosition,
-                                  y: pos.scale
-                                    ? pos.yPosition * pos.scale
+                                  y: pos.isMobile
+                                    ? pos.scale && pos.yPosition * pos.scale
                                     : pos.yPosition
                                 }}
                                 onClick={() => {
@@ -998,7 +1029,14 @@ function RenderPdf({
                                         right: { display: "none" },
                                         bottomRight: { display: "block" }
                                       }}
-                                      onDragStop={handleStop}
+                                      onDragStop={(event, dragElement) =>
+                                        handleStop(
+                                          event,
+                                          dragElement,
+                                          data.signerObjId,
+                                          pos.key
+                                        )
+                                      }
                                       default={{
                                         x: pos.xPosition,
                                         y: pos.yPosition
@@ -1043,7 +1081,7 @@ function RenderPdf({
                                           fontSize: "12px",
                                           color: "black",
                                           fontWeight: "600",
-                                          // justifyContent: "center",
+
                                           marginTop: "0px"
                                         }}
                                       >
@@ -1067,7 +1105,6 @@ function RenderPdf({
                               <Rnd
                                 ref={nodeRef}
                                 key={pos.key}
-                                // lockAspectRatio={2.5}
                                 lockAspectRatio={
                                   pos.Width ? pos.Width / pos.Height : 2.5
                                 }
@@ -1158,7 +1195,6 @@ function RenderPdf({
                               <Rnd
                                 ref={nodeRef}
                                 key={pos.key}
-                                // lockAspectRatio={2.5}
                                 lockAspectRatio={
                                   pos.Width ? pos.Width / pos.Height : 2.5
                                 }
@@ -1263,14 +1299,18 @@ function RenderPdf({
               }}
               onLoadSuccess={pageDetails}
               ref={pdfRef}
-              file={pdfUrl ? pdfUrl : pdfDetails[0] && pdfDetails[0].URL}
-              //   file="https://qikinnovation.ams3.digitaloceanspaces.com/exported_file_2068_2023-08-30T05%3A04%3A26.334Z.pdf" //  "https://api.printnode.com/static/test/pdf/multipage.pdf" //  {pdfUrl ? pdfUrl : signPdfUrl}
+              file={
+                pdfUrl
+                  ? pdfUrl
+                  : pdfDetails[0] && pdfDetails[0].SignedUrl
+                  ? pdfDetails[0].SignedUrl
+                  : pdfDetails[0].URL
+              }
             >
               {Array.from(new Array(numPages), (el, index) => (
                 <Page
                   key={index}
                   pageNumber={pageNumber}
-                  // width={pdfNewWidth}
                   renderAnnotationLayer={false}
                   renderTextLayer={false}
                   onGetAnnotationsError={(error) => {

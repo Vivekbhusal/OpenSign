@@ -15,7 +15,11 @@ import EmailComponent from "./component/emailComponent";
 import FieldsComponent from "./component/fieldsComponent";
 import Modal from "react-bootstrap/Modal";
 import ModalHeader from "react-bootstrap/esm/ModalHeader";
-import { getBase64FromIMG } from "../utils/Utils";
+import {
+  convertPNGtoJPEG,
+  contractDocument,
+  getBase64FromIMG
+} from "../utils/Utils";
 import { useParams } from "react-router-dom";
 import Tour from "reactour";
 import { onSaveImage, onSaveSign } from "../utils/Utils";
@@ -24,11 +28,11 @@ import HandleError from "./component/HandleError";
 import Nodata from "./component/Nodata";
 import Header from "./component/header";
 import RenderPdf from "./component/renderPdf";
-import { contractUsers, contactBook } from "../utils/Utils";
+import { contractUsers, contactBook, urlValidator } from "../utils/Utils";
+import { modalAlign } from "../utils/Utils";
+import { $ } from "select-dom";
 //For signYourself inProgress section signer can add sign and complete doc sign.
 function SignYourSelf() {
-  // pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
-
   const [pdfDetails, setPdfDetails] = useState([]);
   const [isSignPad, setIsSignPad] = useState(false);
   const [allPages, setAllPages] = useState(null);
@@ -169,61 +173,48 @@ function SignYourSelf() {
     //pdf from left and right component
     setPdfNewWidth(pdfWidth);
     if (documentId) {
-      getDocumentDetails();
+      getDocumentDetails(true);
     }
   }, []);
 
   //function for get document details for perticular signer with signer'object id
-  const getDocumentDetails = async () => {
-    await axios
-      .get(
-        `${localStorage.getItem("baseUrl")}classes/${localStorage.getItem(
-          "_appName"
-        )}_Document?where={"objectId":"${documentId}"}&include=ExtUserPtr,Signers`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "X-Parse-Application-Id": localStorage.getItem("parseAppId"),
-            "X-Parse-Session-Token": localStorage.getItem("accesstoken")
-          }
-        }
-      )
-      .then((Listdata) => {
-        const json = Listdata.data;
-        const res = json.results;
+  const getDocumentDetails = async (showComplete) => {
+    //getting document details
+    const documentData = await contractDocument(documentId);
 
-        if (res[0] && res.length > 0) {
-          setPdfDetails(res);
-          const isCompleted = res[0].IsCompleted && res[0].IsCompleted;
-          if (isCompleted) {
-            const docStatus = {
-              isCompleted: isCompleted
-            };
-
-            setDocumentStatus(docStatus);
-            const alreadySign = {
-              status: true,
-              mssg: "You have successfully signed the document!"
-            };
-            setShowAlreadySignDoc(alreadySign);
-            setPdfUrl(res[0].SignedUrl);
-          }
-        } else {
-          setNoData(true);
-
-          const loadObj = {
-            isLoad: false
-          };
-          setIsLoading(loadObj);
-        }
-      })
-      .catch((err) => {
-        const loadObj = {
-          isLoad: false
+    if (documentData && documentData.length > 0) {
+      setPdfDetails(documentData);
+      const isCompleted =
+        documentData[0].IsCompleted && documentData[0].IsCompleted;
+      if (isCompleted && showComplete) {
+        const docStatus = {
+          isCompleted: isCompleted
         };
-        setHandleError("Error: Something went wrong!");
-        setIsLoading(loadObj);
-      });
+
+        setDocumentStatus(docStatus);
+        const alreadySign = {
+          status: true,
+          mssg: "You have successfully signed the document!"
+        };
+        setShowAlreadySignDoc(alreadySign);
+        setPdfUrl(documentData[0].SignedUrl);
+      }
+    } else if (
+      documentData === "Error: Something went wrong!" ||
+      (documentData.result && documentData.result.error)
+    ) {
+      const loadObj = {
+        isLoad: false
+      };
+      setHandleError("Error: Something went wrong!");
+      setIsLoading(loadObj);
+    } else {
+      setNoData(true);
+      const loadObj = {
+        isLoad: false
+      };
+      setIsLoading(loadObj);
+    }
     await axios
       .get(
         `${localStorage.getItem("baseUrl")}classes/${localStorage.getItem(
@@ -254,13 +245,10 @@ function SignYourSelf() {
         setHandleError("Error: Something went wrong!");
         setIsLoading(loadObj);
       });
-    const contractUsersRes = await contractUsers(jsonSender.objectId);
 
-    if (
-      contractUsersRes !== "Error: Something went wrong!" &&
-      contractUsersRes &&
-      contractUsersRes[0]
-    ) {
+    const contractUsersRes = await contractUsers(jsonSender.email);
+
+    if (contractUsersRes[0] && contractUsersRes.length > 0) {
       setContractName("_Users");
       setSignerUserId(contractUsersRes[0].objectId);
       const tourstatuss =
@@ -287,14 +275,12 @@ function SignYourSelf() {
       setIsLoading(loadObj);
     } else if (contractUsersRes.length === 0) {
       const contractContactBook = await contactBook(jsonSender.objectId);
-      if (contractContactBook && contractContactBook[0]) {
+      if (contractContactBook && contractContactBook.length > 0) {
         setContractName("_Contactbook");
-
         setSignerUserId(contractContactBook[0].objectId);
         const tourstatuss =
           contractContactBook[0].TourStatus &&
           contractContactBook[0].TourStatus;
-
         if (tourstatuss && tourstatuss.length > 0) {
           setTourStatus(tourstatuss);
           const checkTourRecipients = tourstatuss.filter(
@@ -304,58 +290,14 @@ function SignYourSelf() {
             setCheckTourStatus(checkTourRecipients[0].signyourself);
           }
         }
+      } else {
+        setNoData(true);
       }
       const loadObj = {
         isLoad: false
       };
       setIsLoading(loadObj);
     }
-
-    // await axios
-    //   .get(
-    //     `${localStorage.getItem("baseUrl")}classes/${localStorage.getItem(
-    //       "_appName"
-    //     )}_Contactbook?where={"UserId": {"__type": "Pointer","className": "_User", "objectId":"${
-    //       jsonSender.objectId
-    //     }"}}`,
-    //     {
-    //       headers: {
-    //         "Content-Type": "application/json",
-    //         "X-Parse-Application-Id": localStorage.getItem("parseAppId"),
-    //         "X-Parse-Session-Token": localStorage.getItem("accesstoken"),
-    //       },
-    //     }
-    //   )
-    //   .then((Listdata) => {
-    //     const json = Listdata.data;
-    //     const res = json.results;
-
-    //     if (res[0]) {
-    //       setSignerUserId(res[0].objectId);
-    //       const tourstatuss = res[0].TourStatus && res[0].TourStatus;
-
-    //       if (tourstatuss && tourstatuss.length > 0) {
-    //         setTourStatus(tourstatuss);
-    //         const checkTourRecipients = tourstatuss.filter(
-    //           (data) => data.signyourself
-    //         );
-    //         if (checkTourRecipients && checkTourRecipients.length > 0) {
-    //           setCheckTourStatus(checkTourRecipients[0].signyourself);
-    //         }
-    //       }
-    //     }
-    //     const loadObj = {
-    //       isLoad: false,
-    //     };
-    //     setIsLoading(loadObj);
-    //   })
-    //   .catch((err) => {
-    //     const loadObj = {
-    //       isLoad: false,
-    //     };
-    //     setHandleError("Error: Something went wrong!");
-    //     setIsLoading(loadObj);
-    //   });
   };
 
   //function for setting position after drop signature button over pdf
@@ -508,39 +450,13 @@ function SignYourSelf() {
           imgUrlList.map(async (data) => {
             let ImgUrl = data.SignUrl;
             //cheking signUrl is defau;t signature url of custom url
-            const checkUrl = ImgUrl.includes("https:");
+            const checkUrl = urlValidator(ImgUrl);
 
             //if default signature url then convert it in base 64
             if (checkUrl) {
               ImgUrl = await getBase64FromIMG(ImgUrl + "?get");
             }
-
             //function for convert signature png base64 url to jpeg base64
-            const convertPNGtoJPEG = (base64Data) => {
-              return new Promise((resolve, reject) => {
-                const canvas = document.createElement("canvas");
-                const img = new Image();
-                img.src = base64Data;
-
-                img.onload = () => {
-                  canvas.width = img.width;
-                  canvas.height = img.height;
-
-                  const ctx = canvas.getContext("2d");
-                  ctx.drawImage(img, 0, 0);
-
-                  // Convert to JPEG by using the canvas.toDataURL() method
-                  const jpegBase64Data = canvas.toDataURL("image/jpeg");
-
-                  resolve(jpegBase64Data);
-                };
-
-                img.onerror = (error) => {
-                  reject(error);
-                };
-              });
-            };
-
             convertPNGtoJPEG(ImgUrl)
               .then((jpegBase64Data) => {
                 const removeBase64Fromjpeg = "data:image/jpeg;base64,";
@@ -548,7 +464,6 @@ function SignYourSelf() {
                   removeBase64Fromjpeg,
                   ""
                 );
-
                 //function for call to embed signature in pdf and get digital signature pdf
                 signPdfFun(newImgUrl, documentId, data, pdfBase64, pageNo);
               })
@@ -589,7 +504,12 @@ function SignYourSelf() {
             imgUrlList.map(async (url) => {
               let signUrl = url.SignUrl;
 
-              const checkUrl = url.SignUrl.includes("https:");
+              if (url.ImageType === "image/png") {
+                //function for convert signature png base64 url to jpeg base64
+                const newUrl = await convertPNGtoJPEG(signUrl);
+                signUrl = newUrl;
+              }
+              const checkUrl = urlValidator(signUrl);
               if (checkUrl) {
                 signUrl = signUrl + "?get";
               }
@@ -599,41 +519,41 @@ function SignYourSelf() {
             })
           );
           images.forEach(async (imgData, id) => {
-            let img;
-            if (
-              imgUrlList[id].ImageType &&
-              imgUrlList[id].ImageType === "image/jpeg"
-            ) {
-              img = await pdfDoc.embedJpg(imgData);
-            } else if (
-              imgUrlList[id].ImageType &&
-              imgUrlList[id].ImageType === "image/png"
-            ) {
-              img = await pdfDoc.embedPng(imgData);
-            } else {
-              img = await pdfDoc.embedPng(imgData);
-            }
-
+            let img = await pdfDoc.embedJpg(imgData);
             const imgHeight = imgUrlList[id].Height
               ? imgUrlList[id].Height
               : 60;
             const imgWidth = imgUrlList[id].Width ? imgUrlList[id].Width : 150;
-            const isMobile = window.innerWidth < 712;
+            const isMobile = window.innerWidth < 767;
             const newWidth = window.innerWidth;
             const scale = isMobile ? pdfOriginalWidth / newWidth : 1;
+
+            const posY = () => {
+              if (isMobile) {
+                if (id === 0) {
+                  return (
+                    page.getHeight() -
+                    imgUrlList[id].yPosition * scale -
+                    imgHeight
+                  );
+                } else if (id > 0) {
+                  return page.getHeight() - imgUrlList[id].yPosition * scale;
+                }
+              } else {
+                return page.getHeight() - imgUrlList[id].yPosition - imgHeight;
+              }
+            };
             page.drawImage(img, {
               x: isMobile
-                ? imgUrlList[id].xPosition * scale + 50
+                ? imgUrlList[id].xPosition * scale + imgWidth / 2
                 : imgUrlList[id].xPosition,
-              y:
-                page.getHeight() - imgUrlList[id].yPosition * scale - imgHeight,
+              y: posY(),
               width: imgWidth,
               height: imgHeight
             });
           });
         }
         const pdfBytes = await pdfDoc.saveAsBase64({ useObjectStreams: false });
-        // console.log("pdfbyte", pdfBytes);
         signPdfFun(pdfBytes, documentId);
       }
       setIsSignPad(false);
@@ -652,17 +572,18 @@ function SignYourSelf() {
     pageNo
   ) => {
     let singleSign;
-    const isMobile = window.innerWidth < 712;
+
+    const isMobile = window.innerWidth < 767;
     const newWidth = window.innerWidth;
     const scale = isMobile ? pdfOriginalWidth / newWidth : 1;
-
+    const imgWidth = xyPosData ? xyPosData.Width : 150;
     if (xyPostion.length === 1 && xyPostion[0].pos.length === 1) {
       const height = xyPosData.Height ? xyPosData.Height : 60;
       const bottomY = xyPosData.isDrag
         ? xyPosData.yBottom * scale - height
         : xyPosData.firstYPos
-        ? xyPosData.yBottom * scale - height + xyPosData.firstYPos
-        : xyPosData.yBottom * scale - height;
+          ? xyPosData.yBottom * scale - height + xyPosData.firstYPos
+          : xyPosData.yBottom * scale - height;
 
       singleSign = {
         pdfFile: pdfBase64Url,
@@ -670,7 +591,7 @@ function SignYourSelf() {
         sign: {
           Base64: base64Url,
           Left: isMobile
-            ? xyPosData.xPosition * scale + 80
+            ? xyPosData.xPosition * scale + imgWidth / 2
             : xyPosData.xPosition,
           Bottom: bottomY,
           Width: xyPosData.Width ? xyPosData.Width : 150,
@@ -684,14 +605,13 @@ function SignYourSelf() {
         docId: documentId
       };
     }
-    // console.log("data",singleSign)
+
     await axios
       .post(`${localStorage.getItem("baseUrl")}functions/signPdf`, singleSign, {
         headers: {
           "Content-Type": "application/json",
           "X-Parse-Application-Id": localStorage.getItem("parseAppId"),
           sessionToken: localStorage.getItem("accesstoken")
-          // sessiontoken,
         }
       })
       .then((Listdata) => {
@@ -699,15 +619,7 @@ function SignYourSelf() {
         // console.log("json ", json);
         setPdfUrl(json.result.data);
         if (json.result.data) {
-          const docStatus = {
-            isCompleted: true
-          };
-
-          setDocumentStatus(docStatus);
-          const loadObj = {
-            isLoad: false
-          };
-          setIsLoading(loadObj);
+          getDocumentDetails(false);
         }
       })
       .catch((err) => {
@@ -718,7 +630,6 @@ function SignYourSelf() {
 
   //function for save x and y position and show signature  tab on that position
   const handleTabDrag = (key, e) => {
-    // console.log("key", key);
     setDragKey(key);
     setIsDragging(true);
   };
@@ -791,8 +702,6 @@ function SignYourSelf() {
   //function for image upload or update
   const onImageChange = (event) => {
     if (event.target.files && event.target.files[0]) {
-      // setIsSignPad(false);
-
       const imageType = event.target.files[0].type;
 
       const reader = new FileReader();
@@ -825,16 +734,11 @@ function SignYourSelf() {
 
         setImage({ src: image.src, imgType: imageType });
       };
-
-      //const imgUrl = URL.createObjectURL(event.target.files[0]);
-
-      //  const imgData = { width: newWidth, height: newHeight, src: imgUrl };
     }
   };
 
   //function for save button to save signature or image url
   const saveSign = (isDefaultSign) => {
-    // console.log("isDefault sign", isDefaultSign);
     const signatureImg = isDefaultSign ? defaultSignImg : signature;
     setIsSignPad(false);
 
@@ -878,9 +782,6 @@ function SignYourSelf() {
 
     if (updateFilter.length > 0) {
       const getXYdata = xyPostion[index].pos;
-
-      // const updateWidth = getXYdata[key].Width;
-      // const updateHeight = getXYdata[key].Height;
       const getPosData = getXYdata;
       const addSign = getPosData.map((url, ind) => {
         if (url.key === key) {
@@ -937,7 +838,7 @@ function SignYourSelf() {
 
     let filterData = xyPostion[index].pos.filter((data) => data.key !== key);
 
-    //  //delete and update block position
+    //delete and update block position
     if (filterData.length > 0) {
       updateResizeData.push(filterData);
       const newUpdatePos = xyPostion.map((obj, ind) => {
@@ -949,12 +850,10 @@ function SignYourSelf() {
 
       setXyPostion(newUpdatePos);
     } else {
-      // setXyPostion([]);
-
       const getRemainPage = xyPostion.filter(
         (data) => data.pageNumber !== pageNumber
       );
-      // console.log("remainPage",getRemainPage)
+
       if (getRemainPage && getRemainPage.length > 0) {
         setXyPostion(getRemainPage);
       } else {
@@ -996,7 +895,6 @@ function SignYourSelf() {
   };
   const tourConfig = [
     {
-      // updateDelay: 1500,
       selector: '[data-tut="reactourFirst"]',
       content: `Drag the signature or stamp placeholder onto the PDF to choose your desired signing location.`,
       position: "top",
@@ -1046,8 +944,6 @@ function SignYourSelf() {
       )
       .then((Listdata) => {
         // const json = Listdata.data;
-        // const res = json.results;
-        // console.log("res", json);
       })
       .catch((err) => {
         console.log("axois err ", err);
@@ -1095,7 +991,11 @@ function SignYourSelf() {
           >
             {/* this modal is used show this document is already sign */}
 
-            <Modal show={showAlreadySignDoc.status}>
+            <Modal
+              show={showAlreadySignDoc.status}
+              onShow={() => modalAlign()}
+              backdropClassName="signature-backdrop"
+            >
               <ModalHeader style={{ background: themeColor() }}>
                 <span style={{ color: "white" }}> Sign Documents</span>
               </ModalHeader>
@@ -1169,6 +1069,8 @@ function SignYourSelf() {
               pdfDetails={pdfDetails}
               isShowHeader={true}
               currentSigner={true}
+              alreadySign={pdfUrl ? true : false}
+              isSignYourself={true}
             />
 
             {/* className="hidePdf" */}
